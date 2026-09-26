@@ -2,8 +2,12 @@
 
 <table>
   <tr>
-    <td><img src="images/picture1.png" width="250"></td>
-    <td><img src="images/picture2.png" width="250"></td>
+    <td align="center">
+      <img src="images/picture1.png" height="300">
+    </td>
+    <td align="center">
+      <img src="images/picture2.png" height="300">
+    </td>
   </tr>
 </table>
 
