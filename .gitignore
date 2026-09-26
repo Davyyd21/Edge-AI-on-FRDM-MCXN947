@@ -4,7 +4,6 @@ debug/
 frdmmcxn947_cm33_core0/
 
 # External repositories / components
-neutron/
 __repo__/
 
 # Training datasets
@@ -14,8 +13,6 @@ training/dataset_nanodet/
 training/fruits-360-3-body-problem/
 training/scripts/dataset/
 
-# External NanoDet repository
-training/nanodet/
 
 # Training outputs
 training/nanodet/workspace/
