@@ -1,0 +1,3 @@
+[submodule "__repo__/mcuxsdk"]
+	ignore = dirty
+	path = __repo__/mcuxsdk

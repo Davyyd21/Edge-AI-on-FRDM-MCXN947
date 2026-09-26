@@ -1,0 +1,72 @@
+# Build output
+.vscode/
+debug/
+frdmmcxn947_cm33_core0/
+
+# External repositories / components
+neutron/
+__repo__/
+
+# Training datasets
+training/dataset/
+training/dataset_detection/
+training/dataset_nanodet/
+training/fruits-360-3-body-problem/
+training/scripts/dataset/
+
+# External NanoDet repository
+training/nanodet/
+
+# Training outputs
+training/nanodet/workspace/
+training/nanodet/weights/
+training/nanodet/test_results/
+
+# Generated model/export directories
+training/nanodet/nanodet_m_0.5x_fruits_96_nosim_tflite/
+training/nanodet/nanodet_m_0.5x_fruits_96_tflite/
+training/nanodet/tflite_fp32/
+training/nanodet/tflite_fp32_128/
+training/nanodet/tflite_fp32_160/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Backup and temporary files
+*.bak
+*.orig
+*.tmp
+
+# Generated build files
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+CTestTestfile.cmake
+cmake_install.cmake
+Makefile
+
+# Compiled binaries and intermediate objects
+*.o
+*.obj
+*.elf
+*.axf
+*.map
+*.hex
+*.bin
+*.out
+
+# IDE/debug generated files
+*.launch
+*.settings
+*.project
+*.cproject
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
