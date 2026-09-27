@@ -76,7 +76,7 @@ void HardFault_Handler(void)
 /*
  * Print the registers saved by the processor when the fault happened.
  * These values are useful for finding the instruction and memory access
- * that caused the crash.
+ * that caused the crash.->using arm-none-eabi-addr2line to find the source line from the PC value
  */
 void HardFault_Dump(uint32_t *stack)
 {
@@ -110,6 +110,7 @@ void HardFault_Dump(uint32_t *stack)
  */
 static void SnapshotDetections(NanoDetDetection *dst, uint32_t *count)
 {
+    //the other task(CameraTask)cannot enter this critical section, so we can safely read the shared buffer and count
     taskENTER_CRITICAL();
 
     uint32_t n = s_overlay_count;
@@ -118,11 +119,12 @@ static void SnapshotDetections(NanoDetDetection *dst, uint32_t *count)
     {
         n = NANODET_MAX_DETECTIONS;
     }
-
-    memcpy(dst, s_overlay_detections, n * sizeof(NanoDetDetection));
+    //we don't let Cameratask to work with the shared buffer, so we can just copy the detections to the local buffer and return the count
+    memcpy(dst, s_overlay_detections, n * sizeof(NanoDetDetection));//dst is a local buffer
     *count = n;
 
     taskEXIT_CRITICAL();
+    //CameraTask will only use the local buffer and count, so it will not be affected by the inference task updating the shared buffer
 }
 
 
@@ -133,7 +135,7 @@ static void SnapshotDetections(NanoDetDetection *dst, uint32_t *count)
 static void UpdateDetections(void)
 {
     NanoDetDetection detections[NANODET_MAX_DETECTIONS];
-
+    //we obtained the detections from the model and store them in a local buffer, then we copy them to the shared buffer in a critical section
     int count = MODEL_GetDetections(detections, NANODET_MAX_DETECTIONS);
 
     if (count < 0)
@@ -145,13 +147,16 @@ static void UpdateDetections(void)
     {
         count = NANODET_MAX_DETECTIONS;
     }
-
+    //we want to make sure that the shared buffer is not being accessed by the camera task while we are updating it, so we enter a critical section
+    //because the camera task will not be able to enter this critical section, we can safely copy the detections to the shared buffer and update the count
+    //in order for the CameraTask not to use old detections, while InferenceTask is updating the shared buffer, we need to make sure that the CameraTask will not be able to access the shared buffer while we are updating it, so we enter a critical section
     taskENTER_CRITICAL();
 
     memcpy(s_overlay_detections, detections, (size_t)count * sizeof(NanoDetDetection));
     s_overlay_count = (uint32_t)count;
 
     taskEXIT_CRITICAL();
+    //after this,the CameraTask can take safely the snapshot of the shared buffer and use it to draw the detections on the camera frame, without worrying about the InferenceTask updating the shared buffer at the same time
 }
 
 
@@ -236,15 +241,15 @@ static void DrawRectOnCameraFrame(uint16_t *frame, int x0, int y0, int x1, int y
     {
         return;
     }
-
-    for (int thickness = 0; thickness < 4; ++thickness)
+    //thickness of the rectangle is 4 pixels, we draw the rectangle by drawing 4 lines, top, bottom, left and right, we use a for loop to draw the lines, we use the thickness variable to determine how many pixels to draw for each line
+    for (int thickness = 0; thickness < 4; ++thickness)//thickness is the number of pixels to draw for each line, we draw the top and bottom lines first, then the left and right lines, we use the thickness variable to determine how many pixels to draw for each line
     {
         int top = y0 + thickness;
         int bottom = y1 - thickness;
         int left = x0 + thickness;
         int right = x1 - thickness;
 
-        if (top <= y1)
+        if (top <= y1)//we draw the top line first, we check if the top line is within the bounds of the image, if it is, we draw the line by setting the pixels in the frame to the color, we use a for loop to iterate over the x coordinates of the line, we use the top variable to determine the y coordinate of the line
         {
             for (int x = x0; x <= x1; ++x)
             {
@@ -252,7 +257,7 @@ static void DrawRectOnCameraFrame(uint16_t *frame, int x0, int y0, int x1, int y
             }
         }
 
-        if (bottom >= y0)
+        if (bottom >= y0)//we draw the bottom line, we check if the bottom line is within the bounds of the image, if it is, we draw the line by setting the pixels in the frame to the color, we use a for loop to iterate over the x coordinates of the line, we use the bottom variable to determine the y coordinate of the line
         {
             for (int x = x0; x <= x1; ++x)
             {
@@ -296,25 +301,27 @@ static void DrawDetectionsOnCameraFrame(uint16_t *frame)
     for (uint32_t i = 0U; i < count; i++)
     {
         const NanoDetDetection *det = &detections[i];
-
-        int x0 = ((int)det->x1 * (int)CAMERA_WIDTH) / 96;
+        //facem mapare liniara
+        //we convert the 96x96 coordinates to the original 320x240 camera coordinates by multiplying the x and y coordinates by the width and height of the camera and dividing by 96, we use integer division to avoid floating point operations, we also clamp the coordinates to be within the bounds of the camera frame, we then draw a rectangle on the camera frame using the converted coordinates and a color based on the class_id of the detection
+        //to understand easier the conversion, we can think of the 96x96 coordinates as a percentage of the camera frame, so we multiply by the width and height of the camera to get the actual pixel coordinates, then we divide by 96 to get the corresponding pixel coordinates in the camera frame
+        int x0 = ((int)det->x1 * (int)CAMERA_WIDTH) / 96;//to explain it easy, we take the x1 coordinate of the detection, which is in the range [0, 96], and multiply it by the width of the camera frame (320), then divide by 96 to get the corresponding x coordinate in the camera frame. We do the same for y0, x1, and y1 using the respective coordinates of the detection and the height of the camera frame (240).
         int y0 = ((int)det->y1 * (int)CAMERA_HEIGHT) / 96;
         int x1 = ((int)det->x2 * (int)CAMERA_WIDTH) / 96;
         int y1 = ((int)det->y2 * (int)CAMERA_HEIGHT) / 96;
-
-        uint16_t color = 0xFFFFU;
+        //practic transformarile astea vor sa zica ca det->x1 in formatul 96x96 este echivalentul lui x0 in formatul 320x240
+        uint16_t color = 0xFFFFU;//default color is white, if the class_id is not 0,1,2, we will use white color to draw the rectangle
 
         if (det->class_id == 0)
         {
-            color = 0xF800U;
+            color = 0xF800U;//red
         }
         else if (det->class_id == 1)
         {
-            color = 0x07E0U;
+            color = 0x07E0U;//green
         }
         else if (det->class_id == 2)
         {
-            color = 0x001FU;
+            color = 0x001FU;//blue
         }
 
         DrawRectOnCameraFrame(frame, x0, y0, x1, y1, color);
@@ -330,15 +337,11 @@ static void DrawDetectionsOnCameraFrame(uint16_t *frame)
 static void InferenceTask(void *pvParameters)
 {
     (void)pvParameters;
-
     PRINTF("INFERENCE: task started\r\n");
-
     uint32_t inference_counter = 0U;
-
     while (1)
     {
         uint32_t buffer_index = 0U;
-
         if (xQueueReceive(s_ready_queue, &buffer_index, portMAX_DELAY) != pdPASS)
         {
             continue;
@@ -350,15 +353,15 @@ static void InferenceTask(void *pvParameters)
         }
 
         /*
-         * The model has its own input tensor, so the preprocessed image
-         * has to be copied from our buffer before starting inference.
+          The model has its own input tensor, so the preprocessed image
+          has to be copied from our buffer before starting inference
          */
-        int8_t *model_input = MODEL_GetInputData();
+        int8_t *model_input = MODEL_GetInputData();//contine adresa memoriei la care modelul asteapta datele de intrare, adica tensorul de intrare al modelului, care este un buffer de dimensiune 96x96x3, unde 3 reprezinta canalele RGB, iar 96x96 reprezinta dimensiunea imaginii de intrare. Aceasta functie returneaza un pointer catre acest buffer, astfel incat sa putem copia datele preprocesate din bufferul nostru in acest tensor de intrare al modelului.
 
         if (model_input == NULL)
         {
             PRINTF("INFERENCE TASK: model input NULL\r\n");
-
+            //portMAX_DELAY doesn't do pooling, so we can safely return the buffer to the free queue without blocking, and continue to the next iteration of the loop
             (void)xQueueSend(s_free_queue, &buffer_index, portMAX_DELAY);
             continue;
         }
@@ -418,8 +421,7 @@ static void CameraTask(void *pvParameters)
          * Do not block here. The camera should continue working even if
          * NanoDet is currently using both inference buffers.
          */
-        bool ai_buffer_available =
-            (xQueueReceive(s_free_queue, &buffer_index, 0U) == pdPASS);
+        bool ai_buffer_available = (xQueueReceive(s_free_queue, &buffer_index, 0U) == pdPASS);
 
         if (ai_buffer_available && buffer_index >= INFERENCE_BUFFER_COUNT)
         {
