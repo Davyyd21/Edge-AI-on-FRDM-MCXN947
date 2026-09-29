@@ -120,6 +120,7 @@ static void SnapshotDetections(NanoDetDetection *dst, uint32_t *count)
         n = NANODET_MAX_DETECTIONS;
     }
     //we don't let Cameratask to work with the shared buffer, so we can just copy the detections to the local buffer and return the count
+    //the reason why we don't let Cameratask to work with the shared buffer is because we don't want to have a race condition, where Cameratask is reading the shared buffer while InferenceTask is writing to it, which would cause Cameratask to read invalid data, so we just copy the detections to the local buffer and return the count, so Cameratask can work with the local buffer without worrying about InferenceTask updating the shared buffer at the same time
     memcpy(dst, s_overlay_detections, n * sizeof(NanoDetDetection));//dst is a local buffer
     *count = n;
 
@@ -357,12 +358,13 @@ static void InferenceTask(void *pvParameters)
           has to be copied from our buffer before starting inference
          */
         int8_t *model_input = MODEL_GetInputData();//contine adresa memoriei la care modelul asteapta datele de intrare, adica tensorul de intrare al modelului, care este un buffer de dimensiune 96x96x3, unde 3 reprezinta canalele RGB, iar 96x96 reprezinta dimensiunea imaginii de intrare. Aceasta functie returneaza un pointer catre acest buffer, astfel incat sa putem copia datele preprocesate din bufferul nostru in acest tensor de intrare al modelului.
-
+        //practic aici copiem datele de tip 96x96x3
         if (model_input == NULL)
         {
             PRINTF("INFERENCE TASK: model input NULL\r\n");
             //portMAX_DELAY doesn't do pooling, so we can safely return the buffer to the free queue without blocking, and continue to the next iteration of the loop
             (void)xQueueSend(s_free_queue, &buffer_index, portMAX_DELAY);
+            //eliberez bufferul de intrare, astfel incat sa poata fi reutilizat de catre CameraTask pentru a procesa urmatorul frame. Daca nu facem asta, atunci bufferul va ramane ocupat si CameraTask nu va putea sa-l foloseasca pentru a procesa urmatorul frame, ceea ce va duce la pierderea unor frame-uri si la o performanta mai slaba
             continue;
         }
 
@@ -421,6 +423,7 @@ static void CameraTask(void *pvParameters)
          * Do not block here. The camera should continue working even if
          * NanoDet is currently using both inference buffers.
          */
+        //acel 0 ne spune ca nu vrem sa asteptam daca coada e goala, pentru ca nu vrem sa blocam CameraTask-ul, deci daca coada e goala, inseamna ca InferenceTask-ul nu a terminat inca de procesat frame-urile anterioare, deci nu avem niciun buffer de intrare disponibil pentru a procesa urmatorul frame, deci nu putem sa facem inferenta pe acest frame, dar il putem afisa pe LCD
         bool ai_buffer_available = (xQueueReceive(s_free_queue, &buffer_index, 0U) == pdPASS);
 
         if (ai_buffer_available && buffer_index >= INFERENCE_BUFFER_COUNT)
@@ -437,6 +440,7 @@ static void CameraTask(void *pvParameters)
 
             vTaskDelay(pdMS_TO_TICKS(1));
             continue;
+            //practic daca n-am luat niciun frame de la camera, atunci nu avem ce sa facem, deci eliberam bufferul de intrare daca l-am luat si asteptam 1ms inainte de a incerca din nou sa luam un frame de la camera
         }
 
         /*
@@ -461,10 +465,11 @@ static void CameraTask(void *pvParameters)
              * The buffer is now ready for the inference task. A zero
              * timeout keeps the camera from blocking on this queue.
              */
-            if (xQueueSend(s_ready_queue, &buffer_index, 0U) != pdPASS)
+            if (xQueueSend(s_ready_queue, &buffer_index, 0U) != pdPASS)//acel 0 ne spune ca nu vrem sa asteptam daca coada e plina, pentru ca nu vrem sa blocam CameraTask-ul, deci daca coada e plina, inseamna ca InferenceTask-ul nu a terminat inca de procesat frame-urile anterioare, deci eliberam bufferul de intrare si incrementam contorul de frame-uri pierdute
             {
-                (void)xQueueSend(s_free_queue, &buffer_index, 0U);
+                (void)xQueueSend(s_free_queue, &buffer_index, 0U);//daca nu am reusit sa punem bufferul in coada de ready, inseamna ca InferenceTask-ul nu a terminat inca de procesat frame-urile anterioare, deci eliberam bufferul de intrare si incrementam contorul de frame-uri pierdute
                 dropped_inference_frames++;
+                //xQueueSend(s_free_queue,...) ne spune ca vrem sa punem bufferul inapoi in coada de free, pentru ca InferenceTask-ul nu a terminat inca de procesat frame-urile anterioare, deci nu putem sa punem bufferul in coada de ready, deci il punem inapoi in coada de free, astfel incat CameraTask-ul sa poata sa-l foloseasca pentru a procesa urmatorul frame
             }
         }
         else
@@ -496,7 +501,7 @@ static void CameraTask(void *pvParameters)
         (void)frame_index;
 
         /* Give the inference task a chance to run after processing the frame. */
-        taskYIELD();
+        taskYIELD();//we used this because even if the priorities of the tasks are the same, we want to give the inference task a chance to run after processing the frame, so we yield the CPU to the inference task, so it can run and process the frame, and then we can continue processing the next frame
     }
 }
 
@@ -583,7 +588,7 @@ int main(void)
     {
         uint32_t buffer_index = i;
 
-        if (xQueueSend(s_free_queue, &buffer_index, 0U) != pdPASS)
+        if (xQueueSend(s_free_queue, &buffer_index, 0U) != pdPASS)//we did this verification because we want to make sure that the buffer is added to the free queue, if it fails, we print an error message and enter an infinite loop, because we cannot continue without the free queue being initialized properly
         {
             PRINTF("ERROR: failed to initialize buffer %u\r\n",
                    (unsigned int)i);

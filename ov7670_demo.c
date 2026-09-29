@@ -20,6 +20,7 @@
  * The OV7670 is configured through I2C before the camera capture
  * peripheral starts receiving the pixel stream.
  */
+//prin I2C(care scrie in registrele camerei pentru a configura senzorul) ii spunem rezolutia, formatul de culoare,clock-ul, expunerea, balansul de alb, etc. pentru ca senzorul sa stie cum sa ne trimita datele
 #define CAMERA_I2C            LPI2C7
 #define CAMERA_FLEXCOMM       7
 #define CAMERA_I2C_CLOCK_FREQ CLOCK_GetBusClkFreq()
@@ -731,7 +732,6 @@ void DEMO_OV7670_Init(void)
      * Register 0x0A contains the upper byte of the product ID.
      */
     uint8_t deviceAddress = 0x0A;
-
     masterXfer.slaveAddress = 0x21U;
     masterXfer.direction = kLPI2C_Write;
     masterXfer.subaddress = 0;
@@ -739,8 +739,8 @@ void DEMO_OV7670_Init(void)
     masterXfer.data = &deviceAddress;
     masterXfer.dataSize = 1;
     masterXfer.flags = kLPI2C_TransferDefaultFlag;
-
-    status = LPI2C_MasterTransferBlocking(CAMERA_I2C, &masterXfer);
+    //blocking=>CPU ul sta si asteapta pana cand transferul s-a terminat, nu face altceva in timpul asta
+    status = LPI2C_MasterTransferBlocking(CAMERA_I2C, &masterXfer);//it is blocking because the camera is not ready to send data, so we need to wait for it to be ready
 
     if (status != kStatus_Success)
     {

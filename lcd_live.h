@@ -10,9 +10,6 @@ extern "C" {
 
 void LCD_LiveInit(void);
 
-void LCD_LiveShowCameraFrame(
-    const uint16_t *pixels
-);
 
 void LCD_LiveShowCameraStripe(
     uint32_t stripe_index,

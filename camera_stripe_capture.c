@@ -15,7 +15,13 @@
  * ensures that the hardware can safely access it.
  */
 static smartdma_camera_param_t s_smartdma_param __attribute__((aligned(32)));
-
+//smartDMA works like this,to explain it simply, smartDMA is a hardware accelerator that can be used to transfer data from one memory location
+// to another without involving the CPU, this is useful for applications that require high-speed data transfer,
+// such as camera capture, because it allows the CPU to perform other tasks while the data transfer is happening in the background.
+// In this case, we are using smartDMA to transfer the camera data from the camera sensor to the frame buffer in memory, so that we can process it later.
+// The smartdma_camera_param_t structure contains the parameters that are needed by smartDMA to perform this transfer,
+// such as the source and destination addresses, the size of the data to be transferred, and the callback function that will be called when the transfer is complete.
+// The s_smartdma_param variable is a static instance of this structure that is used to configure smartDMA for camera capture.
 /*
  * Full QVGA RGB565 camera frame:
  * 320 x 240 pixels x 2 bytes = 153600 bytes.
@@ -25,7 +31,7 @@ static smartdma_camera_param_t s_smartdma_param __attribute__((aligned(32)));
 static volatile uint16_t s_camera_frame[CAMERA_FRAME_PIXELS] __attribute__((aligned(32)));
 
 /*
- * SmartDMA executes its camera capture code using this dedicated stack.
+ * SmartDMA uses the stack in order to store its internal state. The stack must be at least 64 bytes and 32-byte aligned.
  * It is also aligned because the SmartDMA hardware accesses it directly.
  */
 static uint32_t s_smartdma_stack[64] __attribute__((aligned(32)));
