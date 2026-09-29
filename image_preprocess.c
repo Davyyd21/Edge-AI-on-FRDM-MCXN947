@@ -15,10 +15,7 @@
 #define G_MEAN_Q16 ((int32_t)(116.28f * 65536.0f))
 #define B_MEAN_Q16 ((int32_t)(123.675f * 65536.0f))
 
-/*
- * Converts one normalized RGB channel value into the int8 quantized
- * representation expected by the neural network input tensor
- */
+//practic ca sa explic mai simplu ce face functia asta, ea ia un pixel de culoare (care are 3 canale RGB) si il normalizeaza si il scaleaza pentru a fi compatibil cu modelul de retea neuronala, adica il transforma intr-un int8 care este formatul de intrare al modelului. Normalizarea se face prin scaderea mediei si inmultirea cu inversul deviatiei standard, iar apoi se adauga un zero point pentru a centra valorile in jurul lui 0. In final, valorile sunt limitate intre -128 si 127 pentru a se incadra in intervalul unui int8.
 static int8_t QuantizeChannel(uint8_t value, int32_t mean_q16, int32_t inv_std_scale_q16)
 {
     int32_t value_q16 = (int32_t)value << 16;// Convert to Q16 format-Q16 is a fixed-point representation where the integer part is stored in the upper 16 bits and the fractional part is stored in the lower 16 bits. This allows for precise representation of decimal values using integers.
@@ -26,7 +23,7 @@ static int8_t QuantizeChannel(uint8_t value, int32_t mean_q16, int32_t inv_std_s
     int64_t product = (int64_t)diff_q16 * inv_std_scale_q16;// The product is calculated in 64-bit integer space to prevent overflow during the multiplication of two 32-bit integers. This is important because the result of multiplying two 32-bit integers can exceed the maximum value that can be represented by a 32-bit integer, leading to incorrect results. By using a 64-bit integer for the product, we ensure that the full range of possible values can be accurately represented without overflow.
 
     int32_t quantized;
-
+    //verificarea asta o facem pentru a ne asigura ca rotunjirea se face corect, deoarece atunci cand impartim un numar negativ la o putere a lui 2, rezultatul este rotunjit in sus (catre zero), ceea ce poate duce la pierderea de precizie. Prin urmare, daca produsul este negativ, scadem 32768 inainte de a face shift-ul la dreapta pentru a obtine o rotunjire corecta.
     if (product >= 0)
     {
         quantized = (int32_t)((product + 32768LL) >> 16U);// The addition of 32768 before the right shift is a technique known as rounding. When you right-shift a number, you effectively divide it by a power of two (in this case, 65536). However, this operation truncates any fractional part, which can lead to a loss of precision. By adding 32768 (which is half of 65536) before the shift, we are effectively rounding the result to the nearest integer instead of simply truncating it. This helps to maintain better accuracy in the quantization process.
@@ -52,7 +49,6 @@ static int8_t QuantizeChannel(uint8_t value, int32_t mean_q16, int32_t inv_std_s
 
     return (int8_t)quantized;
 }
-
 /*
  * RGB565 stores red, green, and blue with fewer bits than standard RGB888.
  * This expands each channel back to 8 bits so the camera image can be
@@ -73,6 +69,7 @@ void RGB565_To_RGB888(uint16_t pixel, uint8_t *r, uint8_t *g, uint8_t *b)
     *g = (uint8_t)((g6 << 2U) | (g6 >> 4U));
     *b = (uint8_t)((b5 << 3U) | (b5 >> 2U));
 }
+//le facem mai intai de forma 888 chiar daca modelul le vrea int8, pentru ca e mai usor sa facem normalizarea pe 888 decat pe 565, pentru ca 565 are mai putine valori posibile decat 888, deci e mai greu sa facem normalizarea pe 565. Dupa ce le-am facut 888, le normalizam si le facem int8.
 
 /*
  * Downsamples the 320x240 camera frame to the model's 96x96 input size,
@@ -87,7 +84,7 @@ void RGB565_ResizeToINT8(const uint16_t *src, int8_t *dst)
 
     for (uint32_t y = 0U; y < MODEL_INPUT_HEIGHT; y++)
     {
-        // Calculate the corresponding y-coordinate in the source image based on the current y-coordinate in the destination image. The formula scales the y-coordinate from the destination image's height to the source image's height, effectively mapping each row of the destination image to a row in the source image.
+        //ca sa explic formula lui src_y mai simplu, ea face o mapare liniara a coordonatelor y din imaginea de intrare (care are inaltimea CAMERA_HEIGHT) la coordonatele y din imaginea de iesire (care are inaltimea MODEL_INPUT_HEIGHT). Practic, pentru fiecare pixel y din imaginea de iesire, calculam pixelul corespunzator src_y din imaginea de intrare folosind raportul dintre inaltimile celor doua imagini. Daca src_y depaseste inaltimea imaginii de intrare, il limitam la ultima linie valida.
         uint32_t src_y = (y * CAMERA_HEIGHT) / MODEL_INPUT_HEIGHT;
 
         if (src_y >= CAMERA_HEIGHT)
@@ -114,7 +111,7 @@ void RGB565_ResizeToINT8(const uint16_t *src, int8_t *dst)
 
             uint32_t dst_index = (y * MODEL_INPUT_WIDTH + x) * MODEL_INPUT_CHANNELS;
 
-            dst[dst_index] = QuantizeChannel(r, R_MEAN_Q16, R_INV_STD_SCALE_Q16);
+            dst[dst_index]      = QuantizeChannel(r, R_MEAN_Q16, R_INV_STD_SCALE_Q16);
             dst[dst_index + 1U] = QuantizeChannel(g, G_MEAN_Q16, G_INV_STD_SCALE_Q16);
             dst[dst_index + 2U] = QuantizeChannel(b, B_MEAN_Q16, B_INV_STD_SCALE_Q16);
         }

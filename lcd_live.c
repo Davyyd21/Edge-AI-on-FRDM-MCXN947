@@ -29,7 +29,7 @@
 static FLEXIO_MCULCD_Type s_flexio_lcd =
 {
     .flexioBase = DEMO_FLEXIO,
-    .busType = kFLEXIO_MCULCD_8080,
+    .busType = kFLEXIO_MCULCD_8080,//puteam sa folosim si 6800, dar 8080 e mai rapid si mai simplu de implementat, pentru ca 6800 necesita un semnal de ceas suplimentar pentru a sincroniza datele, in timp ce 8080 foloseste doar semnalele de comanda si date. De asemenea, 8080 este mai comun pentru interfetele LCD, deci este mai usor sa gasim drivere si exemple pentru el
     .dataPinStartIndex = DEMO_FLEXIO_DATA_PIN_START,
     .ENWRPinIndex = DEMO_FLEXIO_WR_PIN,
     .RDPinIndex = DEMO_FLEXIO_RD_PIN,
@@ -69,10 +69,7 @@ static void LCD_SetResetPin(bool set)
  * polling the FlexIO peripheral, so the CPU can execute the inference task
  * while the LCD transfer is in progress.
  */
-static void LCD_TransferCallback(FLEXIO_MCULCD_Type *base,
-                                 flexio_mculcd_handle_t *handle,
-                                 status_t status,
-                                 void *userData)
+static void LCD_TransferCallback(FLEXIO_MCULCD_Type *base,flexio_mculcd_handle_t *handle,status_t status,void *userData)
 {
     (void)base;
     (void)handle;
@@ -80,12 +77,11 @@ static void LCD_TransferCallback(FLEXIO_MCULCD_Type *base,
 
     s_lcd_xfer_status = status;
 
-    if (s_lcd_wait_task != NULL)
+    if (s_lcd_wait_task != NULL)//verificam daca exista vreun task care asteapta notificarea
     {
         BaseType_t higher_priority_task_woken = pdFALSE;
-
         vTaskNotifyGiveFromISR(s_lcd_wait_task, &higher_priority_task_woken);
-        portYIELD_FROM_ISR(higher_priority_task_woken);
+        portYIELD_FROM_ISR(higher_priority_task_woken);//daca task-ul care asteapta notificarea are o prioritate mai mare decat task-ul curent, atunci facem un context switch pentru a rula task-ul care asteapta notificarea
     }
 }
 
@@ -96,7 +92,7 @@ static void LCD_TransferCallback(FLEXIO_MCULCD_Type *base,
 static status_t LCD_WriteCommand(void *dbi_xfer_handle, uint32_t command)
 {
     FLEXIO_MCULCD_Type *flexio_lcd =
-        (FLEXIO_MCULCD_Type *)dbi_xfer_handle;
+        (FLEXIO_MCULCD_Type *)dbi_xfer_handle;//practic aici facem un cast de la void* la FLEXIO_MCULCD_Type* pentru a putea folosi functiile FlexIO MCULCD care necesita un pointer la structura FLEXIO_MCULCD_Type
 
     FLEXIO_MCULCD_StartTransfer(flexio_lcd);
     FLEXIO_MCULCD_WriteCommandBlocking(flexio_lcd, command);
@@ -105,27 +101,19 @@ static status_t LCD_WriteCommand(void *dbi_xfer_handle, uint32_t command)
     return kStatus_Success;
 }
 
-static status_t LCD_WriteData(void *dbi_xfer_handle,
-                              void *data,
-                              uint32_t length_bytes)
+static status_t LCD_WriteData(void *dbi_xfer_handle,void *data,uint32_t length_bytes)
 {
     FLEXIO_MCULCD_Type *flexio_lcd =
         (FLEXIO_MCULCD_Type *)dbi_xfer_handle;
 
     FLEXIO_MCULCD_StartTransfer(flexio_lcd);
-    FLEXIO_MCULCD_WriteDataArrayBlocking(
-        flexio_lcd,
-        data,
-        length_bytes);
+    FLEXIO_MCULCD_WriteDataArrayBlocking(flexio_lcd,data,length_bytes);
     FLEXIO_MCULCD_StopTransfer(flexio_lcd);
 
     return kStatus_Success;
 }
 
-static status_t LCD_WriteMemory(void *dbi_xfer_handle,
-                                uint32_t command,
-                                const void *data,
-                                uint32_t length_bytes)
+static status_t LCD_WriteMemory(void *dbi_xfer_handle,uint32_t command,const void *data,uint32_t length_bytes)
 {
     FLEXIO_MCULCD_Type *flexio_lcd =
         (FLEXIO_MCULCD_Type *)dbi_xfer_handle;
@@ -138,10 +126,7 @@ static status_t LCD_WriteMemory(void *dbi_xfer_handle,
     {
         FLEXIO_MCULCD_StartTransfer(flexio_lcd);
         FLEXIO_MCULCD_WriteCommandBlocking(flexio_lcd, command);
-        FLEXIO_MCULCD_WriteDataArrayBlocking(
-            flexio_lcd,
-            data,
-            length_bytes);
+        FLEXIO_MCULCD_WriteDataArrayBlocking(flexio_lcd,data,length_bytes);
         FLEXIO_MCULCD_StopTransfer(flexio_lcd);
 
         return kStatus_Success;
@@ -184,8 +169,7 @@ static status_t LCD_WriteMemory(void *dbi_xfer_handle,
 
         return status;
     }
-    //here the notiification is used to wait for the transfer to complete, so we can return from this function only when the transfer is done, as expected by the ST7796S driver. The notification is sent from the LCD transfer callback when the transfer is done, so we can wait for it here and continue execution when we receive it.
-    (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    (void)ulTaskNotifyTake(pdTRUE, portMAX_DELAY);//aici facem practic o asteptare a notificarii de la callback-ul de transfer, care va fi trimisa cand transferul este complet. portMAX_DELAY inseamna ca vom astepta indefinit pana cand primim notificarea
 
     return s_lcd_xfer_status;
 }
@@ -356,38 +340,18 @@ static void LCD_InitPanel(void)
 
 static void LCD_Clear(void)
 {
-    memset(
-        s_black_stripe,
-        0,
-        sizeof(s_black_stripe));
-
+    memset(s_black_stripe,0,sizeof(s_black_stripe));
     PRINTF("LCD: clearing screen...\r\n");
-
     /*
      * The LCD is cleared stripe by stripe so the same small SRAMX buffer
      * can be reused instead of allocating a full 320x480 frame buffer.
      */
-    for (uint32_t stripe = 0U;
-         stripe < (LCD_LOGICAL_HEIGHT / CAMERA_STRIPE_H);
-         stripe++)
+    for (uint32_t stripe = 0U;stripe < (LCD_LOGICAL_HEIGHT / CAMERA_STRIPE_H);stripe++)
     {
-        uint16_t start_y =
-            (uint16_t)(stripe * CAMERA_STRIPE_H);
-
-        uint16_t end_y =
-            (uint16_t)(start_y + CAMERA_STRIPE_H - 1U);
-
-        ST7796S_SelectArea(
-            &s_lcd_handle,
-            0U,
-            start_y,
-            LCD_LOGICAL_WIDTH - 1U,
-            end_y);
-
-        ST7796S_WritePixels(
-            &s_lcd_handle,
-            s_black_stripe,
-            CAMERA_STRIPE_PIXELS);
+        uint16_t start_y = (uint16_t)(stripe * CAMERA_STRIPE_H);
+        uint16_t end_y = (uint16_t)(start_y + CAMERA_STRIPE_H - 1U);
+        ST7796S_SelectArea(&s_lcd_handle,0U,start_y,LCD_LOGICAL_WIDTH - 1U,end_y);
+        ST7796S_WritePixels(&s_lcd_handle,s_black_stripe,CAMERA_STRIPE_PIXELS);
     }
 }
 
@@ -422,23 +386,11 @@ void LCD_LiveShowCameraStripe(uint32_t stripe_index,
         return;
     }
 
-    uint16_t start_y =
-        (uint16_t)(stripe_index * CAMERA_STRIPE_H);
+    uint16_t start_y = (uint16_t)(stripe_index * CAMERA_STRIPE_H);
+    uint16_t end_y = (uint16_t)(start_y + CAMERA_STRIPE_H - 1U);
 
-    uint16_t end_y =
-        (uint16_t)(start_y + CAMERA_STRIPE_H - 1U);
-
-    ST7796S_SelectArea(
-        &s_lcd_handle,
-        0U,
-        start_y,
-        LCD_LOGICAL_WIDTH - 1U,
-        end_y);
-
-    ST7796S_WritePixels(
-        &s_lcd_handle,
-        (uint16_t *)pixels,
-        CAMERA_STRIPE_PIXELS);
+    ST7796S_SelectArea(&s_lcd_handle,0U,start_y,LCD_LOGICAL_WIDTH - 1U,end_y);
+    ST7796S_WritePixels(&s_lcd_handle,(uint16_t *)pixels,CAMERA_STRIPE_PIXELS);
 }
 
 void LCD_LiveShowCameraFrame(const uint16_t *pixels)
@@ -452,20 +404,15 @@ void LCD_LiveShowCameraFrame(const uint16_t *pixels)
      * The camera produces a 320x240 frame while the LCD is 320x480.
      * The frame is sent as sixteen consecutive 320x15 stripes.
      */
-    for (uint32_t stripe = 0U;
-         stripe < CAMERA_STRIPE_COUNT;
-         stripe++)
+    for (uint32_t stripe = 0U;stripe < CAMERA_STRIPE_COUNT;stripe++)
     {
-        const uint16_t *stripe_pixels =
-            pixels + (stripe * CAMERA_STRIPE_PIXELS);
+        const uint16_t *stripe_pixels = pixels + (stripe * CAMERA_STRIPE_PIXELS);
 
         PRINTF(
             "LCD: sending stripe %u\r\n",
             (unsigned int)stripe);
 
-        LCD_LiveShowCameraStripe(
-            stripe,
-            stripe_pixels);
+        LCD_LiveShowCameraStripe(stripe,stripe_pixels);
 
         PRINTF(
             "LCD: stripe %u finished\r\n",

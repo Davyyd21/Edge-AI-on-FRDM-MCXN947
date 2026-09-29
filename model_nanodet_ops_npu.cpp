@@ -10,14 +10,15 @@
  * operations are available when the model is loaded. Keeping only the
  * operators used by the model avoids allocating unnecessary resolver data.
  */
+//lista de operatori disponibili pentru TensorFlow Lite Micro
 tflite::MicroOpResolver &MODEL_GetOpsResolver()
 {
     static tflite::MicroMutableOpResolver<13> s_microOpResolver;
 
     /* Operators used by the NanoDet network itself. */
-    s_microOpResolver.AddPad();
-    s_microOpResolver.AddConv2D();
-    s_microOpResolver.AddLeakyRelu();
+    s_microOpResolver.AddPad();// Pad operator is used to add padding to the input tensor, which is necessary for certain convolution operations in the NanoDet model. Padding helps maintain the spatial dimensions of the input tensor after convolution, allowing the model to learn features effectively without losing information at the borders of the input image.
+    s_microOpResolver.AddConv2D();// Conv2D operator is a fundamental building block of convolutional neural networks (CNNs) like NanoDet. It applies a set of learnable filters to the input tensor, producing feature maps that capture spatial hierarchies and patterns in the data. This operation is essential for extracting meaningful features from images, enabling the model to detect objects accurately.
+    s_microOpResolver.AddLeakyRelu();// LeakyReLU operator introduces non-linearity into the model while allowing a small gradient for negative input values. This helps prevent the "dying ReLU" problem, where neurons become inactive and stop learning. In the context of NanoDet, LeakyReLU enhances the model's ability to learn complex patterns and improves overall performance in object detection tasks.
     s_microOpResolver.AddDepthwiseConv2D();
     s_microOpResolver.AddConcatenation();
     s_microOpResolver.AddReshape();
@@ -39,3 +40,5 @@ tflite::MicroOpResolver &MODEL_GetOpsResolver()
 
     return s_microOpResolver;
 }
+//graful Neutron care e trimis catre NPU poate folosi aceste operatii din lista/registru
+//CPU-ul tot este folosit pentru partea de runtime TFLM, preprocessing, postprocessing/decoder NanoDet, coordonare

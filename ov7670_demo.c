@@ -751,7 +751,7 @@ void DEMO_OV7670_Init(void)
      * Read back the selected register. A working sensor should return
      * 0x76, which is printed below for an easy hardware check.
      */
-    masterXfer.slaveAddress = 0x21U;
+    masterXfer.slaveAddress = 0x21U;//the address of the camera
     masterXfer.direction = kLPI2C_Read;
     masterXfer.subaddress = 0;
     masterXfer.subaddressSize = 0;
@@ -774,19 +774,19 @@ void DEMO_OV7670_Init(void)
      */
     for (int j = 0; j < (int)ARRAY_SIZE(ov7670_init_regtbl); ++j)
     {
-        masterXfer.slaveAddress = 0x21U;
+        masterXfer.slaveAddress = 0x21U;//the address of the camera
         masterXfer.direction = kLPI2C_Write;
         masterXfer.subaddress = 0;
         masterXfer.subaddressSize = 0;
         masterXfer.data = &ov7670_init_regtbl[j][0];
-        masterXfer.dataSize = 2;
+        masterXfer.dataSize = 2;//we send 2 bytes, the first byte is the register address, the second byte is the value to write
         masterXfer.flags = kLPI2C_TransferDefaultFlag;
 
         status = LPI2C_MasterTransferBlocking(CAMERA_I2C, &masterXfer);
 
         if (status != kStatus_Success)
         {
-            PRINTF("\r\nN10 I3C read id fail.\r\n");
+            PRINTF("\r\nN10 I2C read id fail.\r\n");
         }
     }
 
