@@ -53,17 +53,12 @@ static float DistributionIntegral(const int8_t *values,float scale,int32_t zero_
 
     for (int i = 0; i < kBins; ++i)
     {
-        logits[i] = Dequantize(
-            values[i],
-            scale,
-            zero_point);
-
+        logits[i] = Dequantize(values[i],scale,zero_point);
         if (logits[i] > max_logit)
         {
             max_logit = logits[i];
         }
     }
-
     /*
      * Subtracting the maximum value before expf() keeps the softmax
      * numerically stable, especially when the logits are large.
@@ -96,9 +91,7 @@ static float DistributionIntegral(const int8_t *values,float scale,int32_t zero_
  * IoU is used by NMS to determine whether two detections are describing
  * essentially the same object.
  */
-static float IoU(
-    const NanoDetDetection *a,
-    const NanoDetDetection *b)
+static float IoU(const NanoDetDetection *a,const NanoDetDetection *b)
 {
     float ix1 = (a->x1 > b->x1) ? a->x1 : b->x1;
     float iy1 = (a->y1 > b->y1) ? a->y1 : b->y1;
@@ -115,18 +108,10 @@ static float IoU(
 
     float intersection = iw * ih;
 
-    float area_a =
-        (a->x2 - a->x1) *
-        (a->y2 - a->y1);
+    float area_a = (a->x2 - a->x1) * (a->y2 - a->y1);
+    float area_b = (b->x2 - b->x1) * (b->y2 - b->y1);
 
-    float area_b =
-        (b->x2 - b->x1) *
-        (b->y2 - b->y1);
-
-    float union_area =
-        area_a +
-        area_b -
-        intersection;
+    float union_area =area_a + area_b - intersection;
 
     if (union_area <= 0.0f)
     {

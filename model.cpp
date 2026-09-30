@@ -78,7 +78,10 @@ int MODEL_Init(void)
     }
 
     PRINTF("NanoDet: schema OK\r\n");
-
+    //Resolver = spune lui TFLM ce operații știe să execute
+    //TFLM este practic runtime-ul care încarcă modelul NanoDet, gestionează tensorii și execută inference-ul,
+    //folosind memoria noastră (tensor arena) și
+    //backend-ul Neutron/NPU unde este cazul
     tflite::MicroOpResolver &resolver = MODEL_GetOpsResolver();
 
     PRINTF("NanoDet: resolver ready\r\n");
@@ -87,6 +90,7 @@ int MODEL_Init(void)
      * Keep the interpreter static because dynamic allocation is undesirable
      * on the embedded target. All tensor memory comes from s_tensor_arena.
      */
+    //Interpreter = este obiectul care încarcă modelul și îl execută, folosind operațiile din resolver și memoria din tensor arena
     static tflite::MicroInterpreter static_interpreter(
         s_model,
         resolver,
@@ -299,10 +303,7 @@ int MODEL_RunInference(void)
      * Store the results of this inference so the camera task can use them
      * when drawing the bounding boxes on the next frame.
      */
-    memcpy(s_detections,
-           decoded,
-           (size_t)detection_count * sizeof(NanoDetDetection));
-
+    memcpy(s_detections,decoded,(size_t)detection_count * sizeof(NanoDetDetection));
     s_detection_count = detection_count;
 
     PRINTF("NANODET: detections=%d\r\n", detection_count);
@@ -359,14 +360,9 @@ int MODEL_GetDetections(NanoDetDetection *detections, int max_detections)
     {
         count = max_detections;
     }
-
-    memcpy(detections,
-           s_detections,
-           (size_t)count * sizeof(NanoDetDetection));
-
+    memcpy(detections,s_detections,(size_t)count * sizeof(NanoDetDetection));
     return count;
 }
-
 
 /*
  * Return a pointer to the model input tensor.
