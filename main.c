@@ -26,7 +26,7 @@ void HardFault_Dump(uint32_t *stack);
 #define INFERENCE_BUFFER_COUNT    2U
 #define CAMERA_TASK_STACK_SIZE    512U
 #define INFERENCE_TASK_STACK_SIZE 512U
-#define CAMERA_TASK_PRIORITY      3U
+#define CAMERA_TASK_PRIORITY      4U
 #define INFERENCE_TASK_PRIORITY   3U
 
 
